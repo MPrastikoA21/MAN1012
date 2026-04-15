@@ -36,46 +36,9 @@
             position: fixed; inset: 0; background: #050505; z-index: 1000;
             display: flex; justify-content: center; align-items: center; flex-direction: column;
         }
-
-
-        /* Tombol Audio Melayang */
-#audio-control {
-    position: fixed;
-    top: 20px;
-    right: 450px; /* Di sebelah kiri panel UI agar tidak tertutup */
-    z-index: 1000;
-    background: rgba(255, 159, 67, 0.2);
-    border: 1px solid var(--accent);
-    color: var(--accent);
-    border-radius: 50%;
-    width: 45px;
-    height: 45px;
-    cursor: pointer;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    transition: 0.3s;
-    backdrop-filter: blur(5px);
-}
-
-#audio-control:hover {
-    background: var(--accent);
-    color: #000;
-}
-
-/* Sembunyikan audio player asli */
-audio { display: none; }
-
     </style>
 </head>
 <body>
-
-    <button id="audio-control" onclick="toggleAudio()">🔊</button>
-
-<audio id="bgm" loop>
-    <source src="Music1.mp3" type="audio/mpeg">
-</audio>
-
 
 <div id="loader">
     <h2 style="color: var(--accent);">Membangun Infrastruktur Kota...</h2>
@@ -101,7 +64,6 @@ audio { display: none; }
     <button class="control-btn" onclick="focusMainNode()">Fokus Gedung Pusat</button>
     <button class="control-btn" onclick="resetView()">Tampilan Kota</button>
 </aside>
-
 
 
 <script>
@@ -135,6 +97,39 @@ audio { display: none; }
         animate();
     }
 
+    // Fungsi untuk membuat Label Teks 3D (Sprite) yang menghadap ke kamera
+    function createLabel(text, scaleModifier = 1) {
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        context.font = "Bold 26px 'Segoe UI', sans-serif";
+        
+        const textWidth = context.measureText(text).width;
+        canvas.width = textWidth + 40;
+        canvas.height = 50;
+
+        // Background Label (menyesuaikan tema gelap)
+        context.fillStyle = "rgba(10, 20, 15, 0.85)";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Border Label (warna accent hijau neon MAN)
+        context.strokeStyle = "#00ff88";
+        context.lineWidth = 4;
+        context.strokeRect(0, 0, canvas.width, canvas.height);
+
+        // Teks Label
+        context.fillStyle = "#ffffff";
+        context.textAlign = "center";
+        context.textBaseline = "middle";
+        context.fillText(text, canvas.width / 2, canvas.height / 2 + 2);
+
+        const texture = new THREE.CanvasTexture(canvas);
+        const spriteMaterial = new THREE.SpriteMaterial({ map: texture });
+        const sprite = new THREE.Sprite(spriteMaterial);
+        
+        sprite.scale.set(canvas.width * 0.03 * scaleModifier, canvas.height * 0.03 * scaleModifier, 1);
+        return sprite;
+    }
+
     function buildCity() {
         // Lantai Dasar Kota
         const planeGeo = new THREE.PlaneGeometry(50, 50);
@@ -154,6 +149,11 @@ audio { display: none; }
         centralBldg.position.y = 4;
         scene.add(centralBldg);
 
+        // --- TAMBAHAN: Label Gedung Pusat ---
+        const centralLabel = createLabel("Pusat Data / ISP", 1.2);
+        centralLabel.position.set(0, 9, 0); // Melayang sedikit di atas gedung pusat
+        scene.add(centralLabel);
+
         // Gedung-Gedung Cabang
         for (let i = 0; i < BUILDING_COUNT; i++) {
             const angle = (i / BUILDING_COUNT) * Math.PI * 2;
@@ -168,11 +168,24 @@ audio { display: none; }
             bldg.position.set(bx, height/2, bz);
             scene.add(bldg);
 
+            // --- TAMBAHAN: Label Gedung Cabang ---
+            const branchLabel = createLabel("Gedung Cabang " + (i + 1), 0.7);
+            branchLabel.position.set(bx, height + 1.2, bz); // Mengikuti tinggi random masing-masing gedung
+            scene.add(branchLabel);
+
             // JALUR FIBER (MAN Backbone)
             const lineMat = new THREE.LineBasicMaterial({ color: 0x00ff88, opacity: 0.3, transparent: true });
             const points = [new THREE.Vector3(0, 0.1, 0), new THREE.Vector3(bx, 0.1, bz)];
             const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
             scene.add(new THREE.Line(lineGeo, lineMat));
+
+            // --- TAMBAHAN: Label Jalur Fiber Optik ---
+            // Hanya dipasang di satu jalur agar tidak saling bertumpuk dan menutupi pandangan
+            if (i === 1) {
+                const fiberLabel = createLabel("Jalur Fiber Optik", 0.6);
+                fiberLabel.position.set(bx / 2, 1.5, bz / 2); // Titik tengah antara pusat dan cabang
+                scene.add(fiberLabel);
+            }
 
             // Packet Data
             createPacket(bx, bz);
@@ -212,35 +225,14 @@ audio { display: none; }
         controls.target.set(0, 0, 0);
     }
 
+    window.addEventListener('resize', () => {
+        camera.aspect = (window.innerWidth - 420) / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth - 420, window.innerHeight);
+    });
+
     init();
-
-    const audio = document.getElementById('bgm');
-const audioBtn = document.getElementById('audio-control');
-let isPlaying = false;
-
-function toggleAudio() {
-    if (isPlaying) {
-        audio.pause();
-        audioBtn.innerHTML = "🔇"; // Icon saat mati
-        audioBtn.style.opacity = "0.5";
-    } else {
-        audio.play().catch(e => console.log("Klik layar dulu untuk memulai musik"));
-        audioBtn.innerHTML = "🔊"; // Icon saat nyala
-        audioBtn.style.opacity = "1";
-    }
-    isPlaying = !isPlaying;
-}
-
-// Otomatis putar saat user pertama kali klik di mana saja (solusi blokir browser)
-document.addEventListener('click', () => {
-    if(!isPlaying) {
-        audio.play();
-        isPlaying = true;
-        audioBtn.innerHTML = "🔊";
-    }
-}, { once: true });
-
-
 </script>
+
 </body>
 </html>
